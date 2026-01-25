@@ -1,0 +1,29 @@
+version: 0.2
+
+phases:
+  pre_build:
+    commands:
+      - echo Build started on `date`
+      - echo Copying production environment configuration...
+      - cp .env.prod .env.local
+      - echo Installing dependencies...
+      - npm install
+  build:
+    commands:
+      - echo Build started on `date`
+      - echo Building the Next.js application for production...
+      - npm run build
+  post_build:
+    commands:
+      - echo Build completed on `date`
+
+artifacts:
+  files:
+    - '**/*'
+  base-directory: 'out'
+  name: fvc-admin-prod-build-$(date +%Y-%m-%d)
+
+cache:
+  paths:
+    - 'node_modules/**/*'
+    - '.next/cache/**/*'
