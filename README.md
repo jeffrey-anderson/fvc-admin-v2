@@ -1,24 +1,26 @@
 # FVC Admin Dashboard
 
-A pure static frontend admin dashboard built with Next.js and AWS Cognito authentication. This application manages your FVC API data and is deployed via CI/CD to S3 and CloudFront.
+A pure static frontend admin dashboard built with Next.js and AWS Cognito authentication. This application manages your FVC API data and is deployed via AWS CodePipeline to S3 and CloudFront.
 
 ## Architecture
 
 - **Frontend**: Next.js (static export) deployed to S3 + CloudFront
 - **Authentication**: Uses your existing FVC API's Cognito User Pool
 - **Backend**: Calls your existing FVC API directly
-- **Deployment**: GitHub Actions or CodePipeline to S3/CloudFront
+- **Deployment**: AWS CodePipeline with CodeBuild to S3/CloudFront
+- **Multi-Environment**: Separate development and production accounts
 
 ## Features
 
 - ✅ **FVC API Integration**: Manage season and out-of-office data from your existing FVC API
-- ✅ **User Management**: Guided interface to manage users via AWS Console
+- ✅ **User Management**: Users managed via AWS Cognito Console
 - ✅ **AWS Cognito Authentication**: Uses your FVC API's Cognito User Pool
 - ✅ **Pure Static**: No backend infrastructure to maintain
-- ✅ **CI/CD Ready**: GitHub Actions workflow for automated deployment
-- ✅ **Multi-Environment**: Support for main and preview deployments
+- ✅ **CI/CD Ready**: AWS CodePipeline with CodeBuild for automated deployment
+- ✅ **Multi-Environment**: Support for development and production accounts
 - ✅ **Responsive Design**: Tailwind CSS with mobile-friendly interface
 - ✅ **TypeScript Support**: Full type safety throughout the application
+- ✅ **Markdown Support**: Rich text formatting for season messages
 
 ## Quick Start
 
@@ -26,7 +28,7 @@ A pure static frontend admin dashboard built with Next.js and AWS Cognito authen
 
 - Node.js 18+ installed
 - Your FVC API deployed with Cognito authentication
-- S3 bucket and CloudFront distribution (see [Infrastructure Setup](INFRASTRUCTURE_SETUP.md))
+- S3 bucket and CloudFront distribution
 
 ### 1. Clone and Install
 
@@ -38,16 +40,23 @@ npm install
 
 ### 2. Configure Environment
 
-Copy `.env.local.example` to `.env.local` and update with your values:
+For local development, use the development environment configuration:
 
 ```bash
-cp .env.local.example .env.local
+cp .env.devl .env.local
 ```
 
-Update the values:
+Or run the configuration script to automatically extract settings from your deployed FVC API:
+
+```bash
+./get-fvc-config.sh
+```
+
+This will populate `.env.local` with:
 - `NEXT_PUBLIC_COGNITO_USER_POOL_ID`: Your FVC API's Cognito User Pool ID
 - `NEXT_PUBLIC_COGNITO_USER_POOL_CLIENT_ID`: Your FVC API's Cognito User Pool Client ID
 - `NEXT_PUBLIC_FVC_API_URL`: Your FVC API URL
+- `NEXT_PUBLIC_AWS_REGION`: AWS region (us-east-2)
 
 ### 3. Local Development
 
@@ -59,14 +68,23 @@ Visit `http://localhost:3000` and log in with your FVC API Cognito credentials.
 
 ### 4. Deploy
 
-#### Option A: GitHub Actions (Recommended)
+#### AWS CodePipeline Deployment
 
-1. Set up infrastructure (see [Infrastructure Setup](INFRASTRUCTURE_SETUP.md))
-2. Configure GitHub secrets (see infrastructure guide)
-3. Push to `main` or `preview` branch
-4. GitHub Actions will automatically build and deploy
+This project uses AWS CodePipeline with CodeBuild for automated deployment:
 
-#### Option B: Manual Deployment
+1. **Development Environment**: 
+   - Uses `buildspec-devl.yml`
+   - Copies `.env.devl` to `.env.local` during build
+   - Deploys to development AWS account
+
+2. **Production Environment**:
+   - Uses `buildspec-prod.yml` 
+   - Copies `.env.prod` to `.env.local` during build
+   - Deploys to production AWS account
+
+Set up CodePipeline projects pointing to your repository with the appropriate buildspec file for each environment.
+
+#### Manual Deployment
 
 ```bash
 npm run build
@@ -79,14 +97,25 @@ aws cloudfront create-invalidation --distribution-id YOUR_DISTRIBUTION_ID --path
 ```
 ├── src/                        # Next.js application
 │   ├── app/
+│   │   ├── layout.tsx         # Root layout with metadata
+│   │   ├── page.tsx           # Main dashboard page
+│   │   └── globals.css        # Global styles
 │   ├── components/
 │   │   ├── UserManagement.tsx  # User management guidance
 │   │   ├── FvcApiManagement.tsx # FVC API data management
-│   │   └── AuthWrapper.tsx     # Authentication wrapper
+│   │   ├── AuthWrapper.tsx     # Authentication wrapper
+│   │   └── AmplifyProvider.tsx # AWS Amplify configuration
 │   └── lib/
-├── .github/workflows/          # GitHub Actions
-│   └── deploy.yml             # Deployment workflow
-├── buildspec.yml              # CodeBuild specification
+│       └── amplify.ts         # Amplify configuration
+├── public/                     # Static assets
+│   ├── favicon.ico            # Site favicon
+│   └── apple-touch-icon.png   # Apple touch icons
+├── buildspec-devl.yml         # CodeBuild spec for development
+├── buildspec-prod.yml         # CodeBuild spec for production
+├── .env.devl                  # Development environment config
+├── .env.prod                  # Production environment config
+├── get-fvc-config.sh          # Script to extract API configuration
+├── create-test-user.sh        # Script to create test users
 ├── INFRASTRUCTURE_SETUP.md    # Infrastructure setup guide
 └── README.md
 ```
@@ -130,18 +159,20 @@ User management is handled through the AWS Cognito Console:
 
 ## Multi-Environment Deployment
 
-### Deploy to Main Environment
+### Development Environment
+- Uses `.env.devl` configuration
+- Deploys via `buildspec-devl.yml`
+- Typically connected to a development branch in CodePipeline
 
-Push to `main` branch or manually trigger workflow with main environment.
+### Production Environment  
+- Uses `.env.prod` configuration
+- Deploys via `buildspec-prod.yml`
+- Typically connected to the main branch in CodePipeline
 
-### Deploy to Preview Environment
-
-Push to `preview` branch or manually trigger workflow with preview environment.
-
-Each environment uses:
-- Separate S3 buckets and CloudFront distributions
-- Same FVC API and Cognito User Pool
-- Environment-specific configuration
+Each environment can use:
+- Separate AWS accounts for isolation
+- Same FVC API endpoints (or separate dev/prod APIs)
+- Same Cognito User Pool or separate pools per environment
 
 ## Infrastructure
 
@@ -150,25 +181,23 @@ This application requires:
 1. **S3 Bucket**: For hosting static files
 2. **CloudFront Distribution**: For global CDN and HTTPS
 3. **Your existing FVC API**: With Cognito authentication
+4. **AWS CodePipeline**: For automated deployment (optional)
+5. **AWS CodeBuild**: For building the application
 
-See [Infrastructure Setup](INFRASTRUCTURE_SETUP.md) for detailed setup instructions.
+## Configuration Files
 
-## GitHub Secrets
+### Environment Files
+- `.env.devl`: Development environment configuration
+- `.env.prod`: Production environment configuration (update with actual values)
+- `.env.local`: Local development (created from .env.devl or get-fvc-config.sh)
 
-Configure these secrets in your GitHub repository:
+### Build Specifications
+- `buildspec-devl.yml`: CodeBuild specification for development deployment
+- `buildspec-prod.yml`: CodeBuild specification for production deployment
 
-### Required Secrets
-- `AWS_ACCESS_KEY_ID`: AWS access key for deployment
-- `AWS_SECRET_ACCESS_KEY`: AWS secret key for deployment
-- `COGNITO_USER_POOL_ID`: Your FVC API's Cognito User Pool ID
-- `COGNITO_USER_POOL_CLIENT_ID`: Your FVC API's Cognito User Pool Client ID
-- `FVC_API_URL`: Your FVC API URL
-
-### Environment-Specific Secrets
-- `S3_BUCKET_MAIN`: S3 bucket name for main environment
-- `S3_BUCKET_PREVIEW`: S3 bucket name for preview environment
-- `CLOUDFRONT_DISTRIBUTION_ID_MAIN`: CloudFront distribution ID for main
-- `CLOUDFRONT_DISTRIBUTION_ID_PREVIEW`: CloudFront distribution ID for preview
+### Utility Scripts
+- `get-fvc-config.sh`: Extracts configuration from deployed FVC API stack
+- `create-test-user.sh`: Creates test users in Cognito (requires AWS CLI)
 
 ## Cost Considerations
 
@@ -181,16 +210,19 @@ This setup uses minimal AWS services:
 
 ### Common Issues
 
-1. **Authentication errors**: Verify Cognito User Pool ID and Client ID are correct
+1. **Authentication errors**: Verify Cognito User Pool ID and Client ID are correct in your environment file
 2. **API call failures**: Check FVC API URL and ensure it's accessible
 3. **CORS errors**: Verify your domain is in the FVC API's CORS configuration
-4. **Build failures**: Check environment variables are set correctly
+4. **Build failures**: Check environment variables are set correctly in buildspec files
+5. **Favicon not updating**: Clear browser cache or try incognito mode
 
 ### Debugging
 
 - Check browser console for JavaScript errors
-- Verify network requests in browser dev tools
+- Verify network requests in browser dev tools  
 - Check CloudWatch logs for your FVC API if API calls fail
+- Use `./get-fvc-config.sh` to verify API configuration
+- Test API endpoints directly with `node test-api.js`
 
 ## Contributing
 
