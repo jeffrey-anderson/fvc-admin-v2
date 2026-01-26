@@ -8,7 +8,7 @@ interface AuthWrapperProps {
   children: ReactNode;
 }
 
-function AuthenticatedContent({ children, user, signOut }: { children: ReactNode, user: any, signOut: () => void }) {
+function AuthenticatedContent({ children, user, signOut }: { children: ReactNode, user: any, signOut?: () => void }) {
   const [userAttributes, setUserAttributes] = useState<any>(null);
 
   useEffect(() => {
@@ -48,7 +48,7 @@ function AuthenticatedContent({ children, user, signOut }: { children: ReactNode
                 Welcome, {displayName}
               </span>
               <button
-                onClick={signOut}
+                onClick={signOut || (() => {})}
                 className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm font-medium"
               >
                 Sign Out
@@ -77,7 +77,7 @@ export default function AuthWrapper({ children }: AuthWrapperProps) {
       hideSignUp={true}
     >
       {({ signOut, user }) => (
-        <AuthenticatedContent user={user} signOut={signOut}>
+        <AuthenticatedContent user={user} signOut={signOut || undefined}>
           {children}
         </AuthenticatedContent>
       )}
