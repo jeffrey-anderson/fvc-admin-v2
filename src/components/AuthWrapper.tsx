@@ -20,16 +20,6 @@ function AuthenticatedContent({ children, user, signOut }: { children: ReactNode
           setUserAttributes(attributes);
         } catch (error) {
           console.error('Error fetching user attributes:', error);
-          // If there's an auth error, try to clear the session
-          if (error && typeof error === 'object' && 'name' in error && error.name === 'UserAlreadyAuthenticatedException') {
-            try {
-              const { signOut } = await import('aws-amplify/auth');
-              await signOut();
-              window.location.reload();
-            } catch (signOutError) {
-              console.error('Error signing out:', signOutError);
-            }
-          }
         }
       }
     };
@@ -82,6 +72,38 @@ function AuthenticatedContent({ children, user, signOut }: { children: ReactNode
 }
 
 export default function AuthWrapper({ children }: AuthWrapperProps) {
+  const [isConfigured, setIsConfigured] = useState(false);
+
+  useEffect(() => {
+    const configureAmplify = async () => {
+      try {
+        const { getCurrentUser, signOut } = await import('aws-amplify/auth');
+        
+        // Check if there's a current user and validate the session
+        try {
+          await getCurrentUser();
+          // Session is valid, continue
+        } catch (error) {
+          // Session is invalid or expired, clear it
+          console.log('Invalid session detected, clearing...');
+          try {
+            await signOut();
+          } catch (signOutError) {
+            // If signOut fails, force clear storage
+            localStorage.clear();
+            sessionStorage.clear();
+          }
+        }
+      } catch (error) {
+        console.error('Error configuring auth:', error);
+      } finally {
+        setIsConfigured(true);
+      }
+    };
+
+    configureAmplify();
+  }, []);
+
   const clearSession = async () => {
     try {
       const { signOut } = await import('aws-amplify/auth');
@@ -99,22 +121,61 @@ export default function AuthWrapper({ children }: AuthWrapperProps) {
     window.location.reload();
   };
 
+  if (!isConfigured) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto"></div>
+          <p className="mt-2 text-sm text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <Authenticator 
       hideSignUp={true}
+      services={{
+        async handleSignIn(formData) {
+          try {
+            const { signIn } = await import('aws-amplify/auth');
+            const { username, password } = formData;
+            return await signIn({ username, password });
+          } catch (error: any) {
+            // Normalize error messages to prevent user enumeration
+            if (error.name === 'UserNotFoundException' || 
+                error.name === 'NotAuthorizedException' ||
+                error.name === 'UserNotConfirmedException') {
+              const normalizedError = new Error('Invalid username or password');
+              normalizedError.name = 'AuthError';
+              throw normalizedError;
+            }
+            // Re-throw other errors as-is
+            throw error;
+          }
+        }
+      }}
       components={{
         Header() {
           return (
             <div className="text-center mb-4">
-              <h1 className="text-xl font-semibold text-gray-900 mb-2">
+              <h1 className="text-xl font-semibold text-gray-900 mb-4">
                 Freedom Valley Campground Admin
               </h1>
-              <button
-                onClick={clearSession}
-                className="bg-yellow-600 hover:bg-yellow-700 text-white px-3 py-1 rounded-md text-xs font-medium"
-              >
-                Clear Session / Reset Login
-              </button>
+              <details className="text-xs text-gray-500">
+                <summary className="cursor-pointer hover:text-gray-700">
+                  Troubleshooting
+                </summary>
+                <div className="mt-2">
+                  <p className="mb-2">Having persistent login issues?</p>
+                  <button
+                    onClick={clearSession}
+                    className="bg-gray-500 hover:bg-gray-600 text-white px-2 py-1 rounded text-xs"
+                  >
+                    Clear Session Data
+                  </button>
+                </div>
+              </details>
             </div>
           );
         }
