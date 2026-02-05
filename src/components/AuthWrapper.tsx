@@ -21,7 +21,7 @@ function AuthenticatedContent({ children, user, signOut }: { children: ReactNode
         } catch (error) {
           console.error('Error fetching user attributes:', error);
           // If there's an auth error, try to clear the session
-          if (error.name === 'UserAlreadyAuthenticatedException') {
+          if (error && typeof error === 'object' && 'name' in error && error.name === 'UserAlreadyAuthenticatedException') {
             try {
               const { signOut } = await import('aws-amplify/auth');
               await signOut();
