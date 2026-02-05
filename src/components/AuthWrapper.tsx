@@ -20,6 +20,16 @@ function AuthenticatedContent({ children, user, signOut }: { children: ReactNode
           setUserAttributes(attributes);
         } catch (error) {
           console.error('Error fetching user attributes:', error);
+          // If there's an auth error, try to clear the session
+          if (error.name === 'UserAlreadyAuthenticatedException') {
+            try {
+              const { signOut } = await import('aws-amplify/auth');
+              await signOut();
+              window.location.reload();
+            } catch (signOutError) {
+              console.error('Error signing out:', signOutError);
+            }
+          }
         }
       }
     };
@@ -72,9 +82,43 @@ function AuthenticatedContent({ children, user, signOut }: { children: ReactNode
 }
 
 export default function AuthWrapper({ children }: AuthWrapperProps) {
+  const clearSession = async () => {
+    try {
+      const { signOut } = await import('aws-amplify/auth');
+      await signOut({ global: true });
+    } catch (error) {
+      console.error('Error clearing session:', error);
+    }
+    // Force clear all storage
+    localStorage.clear();
+    sessionStorage.clear();
+    // Clear all cookies for this domain
+    document.cookie.split(";").forEach((c) => {
+      document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
+    });
+    window.location.reload();
+  };
+
   return (
     <Authenticator 
       hideSignUp={true}
+      components={{
+        Header() {
+          return (
+            <div className="text-center mb-4">
+              <h1 className="text-xl font-semibold text-gray-900 mb-2">
+                Freedom Valley Campground Admin
+              </h1>
+              <button
+                onClick={clearSession}
+                className="bg-yellow-600 hover:bg-yellow-700 text-white px-3 py-1 rounded-md text-xs font-medium"
+              >
+                Clear Session / Reset Login
+              </button>
+            </div>
+          );
+        }
+      }}
     >
       {({ signOut, user }) => (
         <AuthenticatedContent user={user} signOut={signOut || undefined}>
