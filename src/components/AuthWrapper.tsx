@@ -116,7 +116,7 @@ export default function AuthWrapper({ children }: AuthWrapperProps) {
     sessionStorage.clear();
     // Clear all cookies for this domain
     document.cookie.split(";").forEach((c) => {
-      document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
+      document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/;secure");
     });
     window.location.reload();
   };
